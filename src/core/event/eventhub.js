@@ -9,8 +9,6 @@ class EventHub {
     if (this.events.length) {
       const event = this.events.shift()
       return event
-    } else {
-      throw new Error('No Events in Hub')
     }
   }
 

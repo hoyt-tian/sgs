@@ -2,7 +2,7 @@ import React from 'react'
 import Game from '../../core/game'
 import { connect } from 'react-redux'
 import Listener from '../../core/listener/listener'
-import { EventType } from '../../core/event/abstractevent'
+import AbstractEvent, { EventType } from '../../core/event/abstractevent'
 import Gamelog from '../gamelog'
 import Player from '../player'
 import Bench from '../bench'
@@ -27,9 +27,9 @@ class WarRoom extends React.Component{
   }
 
   setupGame(game) {
-    game.requireCards = ({ target, cards, playerIndex }) => {
+    game.requireCards = ({ cards, playerIndex }) => {
       return new Promise((resolve, reject) => {
-        game.dispatch(ActionMap.currentSelect(target))
+        game.dispatch(ActionMap.currentSelect(playerIndex))
         game.dispatch(ActionMap.target([]))
 
         const { benchConfirm, benchCancel, benchCancelText, benchConfirmText } = this.state
@@ -42,9 +42,9 @@ class WarRoom extends React.Component{
           },
           benchConfirmText: '出牌',
           benchCancelText: '取消',
-          benchConfirm: () => {
+          benchConfirm: (state, props) => {
             game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel())))
-            game.dispatch(ActionMap.currentSelect(playerIndex))
+            game.dispatch(ActionMap.currentSelect(props.playerIndex))
             game.dispatch(ActionMap.target([]))
 
             this.setState({
@@ -55,10 +55,14 @@ class WarRoom extends React.Component{
               benchConfirm,
               benchConfirmText,
             })
-            resolve(arguments)
+            const cards = game.players[props.playerIndex].cards
+            resolve({
+              card: cards[state.selected],
+              cardIndex: state.selected,
+            })
           },
-          benchCancel: () => {
-            game.dispatch(ActionMap.currentSelect(playerIndex))
+          benchCancel: (state, props) => {
+            game.dispatch(ActionMap.currentSelect(props.playerIndex))
             game.dispatch(ActionMap.target([]))
 
             this.setState({
@@ -68,7 +72,7 @@ class WarRoom extends React.Component{
               benchCancelText,
               benchConfirm,
               benchConfirmText,
-            }, () => reject({ cards, target }))
+            }, () => reject({ cards, playerIndex: props.playerIndex }))
           }
         })
 
@@ -81,14 +85,53 @@ class WarRoom extends React.Component{
             benchConfirmText: '出牌',
             benchCancelText: '结束',
             benchConfirm: (state, props) => {
-              game.useCard({
+              // todo 判断卡牌的目标人群是单体还是群体
+              const cfg = {
                 playerIndex: props.playerIndex,
                 cardIndex: state.selected,
-                target: props.target,
+                player: game.players[props.playerIndex],
+                card: game.players[props.playerIndex].cards[state.selected],
+              }
+              switch(cfg.card.name) {
+                case '无中生有':
+                  cfg.target = cfg.playerIndex
+                  break
+                case '决斗':
+                case '乐不思蜀':
+                case '过河拆桥':
+                  cfg.target = props.target[0]
+                  break
+                case '南蛮入侵':
+                case '万箭齐发':
+                  cfg.target = []
+                  for(let i=(props.playerIndex+1) % game.players.length; i !== props.playerIndex; i = (i+1) % game.players.length){
+                    cfg.target.push(i)
+                  }
+                  break
+                case '桃园结义':
+                case '五谷丰登':
+                  cfg.target = []
+                  for(let j=0; j < game.players.length; j++) {
+                    cfg.target.push( (props.playerIndex + j) % game.players.length )
+                  }
+                  break
+              }
+              game.useCard(cfg).then(events => {
+                if (events instanceof AbstractEvent) {
+                  game.pushEvent(events)
+                } else if (events instanceof Array) {
+                  game.pushEvent(events.filter(e => e instanceof AbstractEvent))
+                }
+              }, events => { 
+                if (events instanceof AbstractEvent) {
+                  game.pushEvent(events)
+                } else if (events instanceof Array) {
+                  game.pushEvent(events.filter(e => e instanceof AbstractEvent))
+                }
               })
             },
             benchCancel: () => {
-              resolve()
+              reject()
             }
           })
       })
@@ -130,8 +173,16 @@ class WarRoom extends React.Component{
       new Listener(function(event){
         return (event.type === EventType.PhaseEvent) && (event.data.name === '回合开始')
       }, function(event, game, resolve){
+        let player = game.players[event.data.playerIndex]
+        player.addCards(game.gameDealer.cards.filter(c => c.name === '决斗' && !c.inUse).slice(0,1))
+        player.addCards(game.gameDealer.cards.filter(c => c.name === '无懈可击' && !c.inUse).slice(0,1))
+
+        player = game.players[1]
+        player.addCards(game.gameDealer.cards.filter(c => c.name === '无懈可击' && !c.inUse).slice(0,1))
+
         game.dispatch(ActionMap.currentSelect(event.data.playerIndex))
         game.dispatch(ActionMap.target([]))
+        game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel())))
         resolve()
         /*
         if (event.data.turnCounter > 20) {

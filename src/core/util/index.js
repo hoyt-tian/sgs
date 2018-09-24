@@ -23,8 +23,17 @@ const pokerChar = (val) => {
   return PChars[val]
 }
 
+/**
+ * 是否为锦囊牌
+ * @param {*} name 
+ */
+const isMagic = (name) => ['无中生有', '无懈可击', 
+      '决斗', '借刀杀人', '万箭齐发', '南蛮入侵', 
+      '顺手牵羊', '五谷丰登', '桃园结义', '过河拆桥', '乐不思蜀', '闪电'].indexOf(name) > -1
+
 export {
   list2map,
   promiseQueue,
   pokerChar,
+  isMagic
 }

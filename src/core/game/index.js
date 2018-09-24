@@ -32,15 +32,22 @@ class Game {
     this.dispatch = (action) => console.info(`$$Dispatch$$ ${JSON.stringify(action)}`)
   }
 
+  pushEvent(events) {
+    this.eventHub.push(events)
+    return this.run()
+  }
+
   run() {
     const event = this.eventHub.poll()
-    return event.execute(this).then((events) => {
-      this.eventHub.push(events)
-      return this.run()
-    }, (err) => {
-      console.error(err)
-      return this.run()
-    })
+    if (event && event instanceof AbstractEvent) {
+      return event.execute(this).then((events) => {
+        this.eventHub.push(events)
+        return this.run()
+      }, (err) => {
+        console.error(err)
+        return this.run()
+      })
+    }
   }
 
   useCard({
@@ -48,7 +55,10 @@ class Game {
     cardIndex,
     target,
     skill,
+    card,
+    player,
   }) {
+    this.dispatch(ActionMap.logs(`${playerIndex}号位置${player.name}打出${card.name}`))
     return new AbstractEvent({
       type: EventType.CardEvent,
       data: {
@@ -57,6 +67,8 @@ class Game {
         cardIndex,
         target,
         skill,
+        card,
+        player,
       }
     }).execute(this)
   }
@@ -66,7 +78,7 @@ class Game {
    * @param {*} param0 
    */
   requireCards({
-    target,
+    playerIndex,
     cards
   }) {
     

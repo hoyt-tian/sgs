@@ -3,6 +3,7 @@ import AbstractEvent, { EventType } from '../event/abstractevent'
 import knuthShuffle from 'knuth-shuffle'
 import { CardSuit } from '../card/gamecard';
 import { ActionMap } from '../../redux/action'
+import { isMagic } from '../util'
 
 /**
  * 标准游戏开局
@@ -216,6 +217,9 @@ const 出牌阶段 = new Listener(function(event){
   // game.dispatch(ActionMap.logs(`${event.data.playerIndex}号位置${player.name}进入出牌阶段`))
   // todo  点击出牌结束后完结
   game.chooseCard().then(() => {
+    console.info('出牌')
+    console.info(arguments)
+  }, () => {
     resolve(new AbstractEvent({
       type: EventType.PhaseEvent,
       data: {
@@ -316,25 +320,110 @@ const 回合变更 = new Listener(function(event){
   resolve()
 })
 
+/**
+ * playerIndex
+ * cardIndex
+ * target
+ */
+const 打出卡牌 = new Listener(function(event){
+  return (event.type === EventType.CardEvent) && (event.data.name === '使用卡牌')
+}, function(event, game, resolve){
+  const player = game.players[event.data.playerIndex]
+  event.data.card = event.data.card || player.cards[event.data.cardIndex]
+  player.cards.splice(event.data.cardIndex, 1)
+  event.data.card.inUse = false
+  game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel() )))
+  resolve()
+}, 2)
+
 const 使用卡牌 = new Listener(function(event){
   return (event.type === EventType.CardEvent) && (event.data.name === '使用卡牌')
 }, function(event, game, resolve, reject){
-    const player = game.players[event.data.playerIndex]
-    const card = player.cards[event.data.cardIndex]
-    const target = event.data.target[0]
-    player.cards.splice(event.data.cardIndex, 1)
+    if (event.disable === true) {
+      return resolve()
+    }
+    const { target, player, card, playerIndex } = event.data
     switch(card.name) {
       case '桃':
         桃({ player, game, card })
         resolve()
-        break;
+        break
       case '杀':
         杀({ player, card, target, game, event, reject }).then(resolve, reject)
-        break;
+        break
+      case '无中生有':
+        player.addCards(game.gameDealer.drawCards(2))
+        game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel() )))
+        resolve()
+        break
+      case '决斗':
+        console.info(`${playerIndex}号位置${player.name}向${target}号位置${game.players[target].name}发起决斗`)
+        game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel() )))
+        决斗({ player, game, target, playerIndex: event.data.playerIndex, card }).then((evt) => {
+          resolve(evt)
+        }, (evt) => {
+          resolve(evt)
+        })
+        break
+      case '无懈可击':
+        console.info('触发无懈可击')
+        event.data.targetEvent.disable = !event.data.targetEvent.disable
+        game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel() )))
+        resolve()
+        break
       default:
+        resolve()
         break
     }
 })
+
+const 轮询无懈 = new Listener(function(event){
+  return event.type === EventType.CardEvent && (event.data.name === '使用卡牌') && isMagic(event.data.card.name)
+}, function(event, game, resolve){
+  const otherIdxs = []
+  for(let i = (event.data.playerIndex+1) % game.players.length; i !== event.data.playerIndex; i = (i + 1) % game.players.length) {
+    otherIdxs.push(i)
+  }
+  const handler = () => {
+    if (otherIdxs.length) {
+      const idx = otherIdxs.shift()
+      const p = game.players[idx]
+
+      // todo 还有可能有技能当成无懈可击，暂时先只判断手牌
+      if( p.cards.some(c => c.name === '无懈可击') ){
+        game.dispatch(ActionMap.currentSelect(idx))
+        return game.requireCards({
+          cards: ['无懈可击'],
+          playerIndex: idx,
+        }).then( ({cardIndex}) => {
+          game.dispatch(ActionMap.logs(`${idx}号位置${game.players[idx].name}打出无懈可击`))
+          new AbstractEvent({
+            type: EventType.CardEvent,
+            data: {
+              name: '使用卡牌',
+              playerIndex: idx,
+              cardIndex,
+              targetEvent: event,
+              card: game.players[idx].cards[cardIndex],
+            }
+          }).execute(game).then(() => {
+            resolve()
+          }, () => {
+            resolve()
+          })
+        }, () => {
+          return handler()
+        })
+      } else {
+        return handler()
+      }
+    } else {
+      resolve()
+    }
+  }
+
+  handler()
+}, 1)
 
 /**
  * 被动打出
@@ -393,6 +482,42 @@ const 杀 = ({ player, card, target, game, event }) => {
       }
     }).execute(game)
   })
+}
+
+const 决斗 = ({ player, playerIndex, target, game, card }) => {
+  if (player.hasSkill('无双')) {
+
+  } else {
+    return game.requireCards({
+      playerIndex: target,
+      cards: ['杀']
+    }).then(({ cardIndex }) => {
+      player.cards.splice(cardIndex, 1)
+      game.dispatch(ActionMap.players(game.players.map(p => p.toViewModel())))
+      return 决斗({
+        target: playerIndex,
+        playerIndex: target,
+        player: game.players[target],
+        game,
+        card
+      })
+    }, () => {
+      console.log(`${player.name}决斗成功`)
+      return new AbstractEvent({
+        type: EventType.PlayerEvent,
+        data: {
+          name: '受到伤害',
+          damageValue: 1,
+          targetIndex: target,
+          target: game.players[target],
+          card,
+          source: player,
+          playerIndex,
+        }
+      })
+    })
+  }
+
 }
 
 const 受到伤害 = new Listener(function(event){
@@ -548,10 +673,12 @@ export {
   弃牌阶段,
   回合结束,
   回合变更,
+  打出卡牌,
   使用卡牌,
   出牌,
   受到伤害,
   濒死检查,
+  轮询无懈,
   
   闭月,
   洛神,
