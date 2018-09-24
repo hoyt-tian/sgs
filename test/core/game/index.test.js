@@ -28,7 +28,7 @@ describe('测试标准身份场', () => {
           resolve()
         }
         
-      })
+      }, -1)
     ]
 
     listeners.forEach(l => game.listeners.push(l))

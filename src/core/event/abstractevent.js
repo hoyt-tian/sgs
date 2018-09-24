@@ -3,6 +3,7 @@ const EventType = {
   CardEvent: 'CE',
   SkillEvent: 'SE',
   DamageEvent: 'DE',
+  PlayerEvent: 'PLE',
 }
 
 class AbstractEvent {
@@ -19,12 +20,15 @@ class AbstractEvent {
         // console.log(`执行事件${this.type} - ${this.data.name}，相关监听函数共有${listeners.length}个`)
         const events = []
         const hanlder = (es) => {
+          if (this.stopPropagation === true) resolve(events)
           if (es instanceof AbstractEvent) {
             events.push(es)
           } else if (es instanceof Array) {
             es.forEach(i => events.push(i))
           }
-          if (listeners.length) return listeners.shift().execute(this, game).then(hanlder)
+          if (listeners.length) return listeners.shift().execute(this, game).then(hanlder, () => {
+            reject(arguments)
+          })
           return resolve(events)
         } 
         return hanlder()

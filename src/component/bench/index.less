@@ -1,0 +1,41 @@
+.bench {
+  height: 38.2%;
+  box-shadow: 0 0 0.1rem black;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  .card-list {
+    display: flex;
+    flex: 1;
+  }
+
+  .op-prof {
+    display: flex;
+    width: 2rem;
+    justify-content: space-between;
+    .operation {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      box-shadow: 0 0 .1rem greenyellow inset;
+      &>div {
+        height: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+      }
+      .btn-use {
+        &.disable {
+          color: gray;
+          cursor: default;
+        }
+        &.enable {
+          color: #000;
+        }
+        border-bottom: .03rem double green;
+      }
+    }
+  }
+}

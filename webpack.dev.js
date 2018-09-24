@@ -1,8 +1,9 @@
 const path = require('path');
 const html = require('html-webpack-plugin');
-const package = require('./package.json')
+const pkg = require('./package.json')
 
 const config = {
+    mode: 'development',
     entry: {},
     devtool: 'source-map',
     output: {
@@ -50,29 +51,15 @@ const config = {
         ]
 
     },
-    plugins: [
-        /*
-        new cleanup(['dist'], {
-            //        root:     __dirname,
-            exclude: [
-                //'shared.js'
-            ],
-            verbose: true,
-            dry: false
-        }),
-        */
-        new cpy([{
-            from: './assets',
-            to: './assets',
-            toType: 'dir'
-        }]),
-        
-    ]
-
+    plugins: [],
+    externals: {
+        react: 'React',
+        'react-dom': 'ReactDOM'
+    },
 }
 
-Object.keys(package.entry).forEach((k) => {
-    config.entry[k] = package.entry[k]
+Object.keys(pkg.entry).forEach((k) => {
+    config.entry[k] = pkg.entry[k]
     config.plugins.push(new html({
         inject: true,
         title: k,

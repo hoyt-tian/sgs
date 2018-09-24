@@ -3,6 +3,7 @@ import AbstractEvent, { EventType } from '../event/abstractevent';
 import Dealer from '../dealer'
 import EventHub from '../event/eventhub'
 import * as Listeners from '../listener'
+import { ActionMap } from '../../redux/action'
 
 class Game {
   constructor({ 
@@ -28,6 +29,7 @@ class Game {
       }
     })
     this.eventHub.push(event)
+    this.dispatch = (action) => console.info(`$$Dispatch$$ ${JSON.stringify(action)}`)
   }
 
   run() {
@@ -41,8 +43,46 @@ class Game {
     })
   }
 
+  useCard({
+    playerIndex,
+    cardIndex,
+    target,
+    skill,
+  }) {
+    return new AbstractEvent({
+      type: EventType.CardEvent,
+      data: {
+        name: '使用卡牌',
+        playerIndex,
+        cardIndex,
+        target,
+        skill,
+      }
+    }).execute(this)
+  }
+
+  /**
+   * 在warroom中定义
+   * @param {*} param0 
+   */
+  requireCards({
+    target,
+    cards
+  }) {
+    
+  }
+
+  /**
+   * 选牌出
+   * @param {*} param0 
+   */
+  chooseCards({}){
+
+  }
+
   assignRole(player, roleCard) {
     roleCard.inUse = true
+    player.roleCard = roleCard
     console.log('准备分配角色', JSON.stringify(arguments))
   }
 
@@ -51,15 +91,24 @@ class Game {
     player.hero = heroCard
     player.maxHP = heroCard.hp
     player.hp = player.maxHP
-    player.hasSkill = (name) => heroCard.hasSkill(name)
-    console.log(`玩家${player.name}选择了英雄${heroCard.name}，体力上限为${player.hp}`)
+    // console.log(`玩家${player.name}选择了英雄${heroCard.name}，体力上限为${player.hp}`)
+    this.dispatch(ActionMap.logs(`${player.name}选择了英雄${heroCard.name}`))
 
   }
 
   static standard(playerCount) {
     const game = new Game({
-      players: new Array(8).fill(0).map((i,idx) => new Player({
-          name: `${idx+1}号玩家`,
+      players: [
+        '王路飞',
+        '琦玉',
+        '狗剩',
+        '建国',
+        '蛋蛋',
+        '慕容',
+        '强子',
+        '彩霞'
+      ].map((i) => new Player({
+          name: i,
         }),
       ),
       roleDealer: Dealer.createRoleDealer(playerCount),
